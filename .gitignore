@@ -1,0 +1,10 @@
+.env
+*.local
+*.log
+
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
+
+src/cloud_functions/waca-core-daily-batch/.venv/
