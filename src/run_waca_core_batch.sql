@@ -1186,6 +1186,17 @@ BEGIN
             q, 'log_audience_membership', q, ',', q, 'log_user_properties', q, ',',
             q, 'mst_user_properties', q, ',',
             q, 'standard_config', q,
+          ') ',
+          -- Safety hardening: only drop leftover tables that follow WACA core
+          -- naming conventions (mst_/log_/dim_/micro_/audit_), so unrelated user
+          -- tables in the same dataset are preserved even if TARGET_DATASET is
+          -- not a dedicated empty dataset.
+          'AND (',
+            'STARTS_WITH(table_name, ', q, 'mst_', q, ') OR ',
+            'STARTS_WITH(table_name, ', q, 'log_', q, ') OR ',
+            'STARTS_WITH(table_name, ', q, 'dim_', q, ') OR ',
+            'STARTS_WITH(table_name, ', q, 'micro_', q, ') OR ',
+            'STARTS_WITH(table_name, ', q, 'audit_', q, ')',
           ')'
         );
         FOR drop_rec IN (SELECT table_name FROM _p2_drop_targets)

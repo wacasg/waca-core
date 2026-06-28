@@ -259,11 +259,16 @@ def _find_skipped_dates_with_data(
     """直近N日のうちSKIPPEDで記録されたが、今はGA4データが存在する日付を返す（YYYYMMDD文字列リスト）。"""
     if not _table_exists(client, "log_batch_execution"):
         return []
+    # Compute the lookback cutoff in BATCH_TIMEZONE rather than a hardcoded zone,
+    # so the daily boundary matches the rest of the wrapper's date handling.
+    cutoff_date = (
+        datetime.now(ZoneInfo(BATCH_TIMEZONE)).date() - timedelta(days=lookback_days)
+    ).strftime("%Y%m%d")
     query = f"""
     SELECT end_date
     FROM `{_table_id('log_batch_execution')}`
     WHERE phase_0_status LIKE 'SKIPPED%'
-      AND end_date >= FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE('Asia/Tokyo'), INTERVAL @lookback_days DAY))
+      AND end_date >= @cutoff_date
     ORDER BY end_date
     """
     rows = list(
@@ -271,7 +276,7 @@ def _find_skipped_dates_with_data(
             query,
             job_config=bigquery.QueryJobConfig(
                 query_parameters=[
-                    bigquery.ScalarQueryParameter("lookback_days", "INT64", lookback_days)
+                    bigquery.ScalarQueryParameter("cutoff_date", "STRING", cutoff_date)
                 ]
             ),
         ).result()

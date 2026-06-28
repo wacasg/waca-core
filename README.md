@@ -22,6 +22,8 @@ to install and run WACA core from Git:
 | `scripts/install_smoke_check.sh` | Static and optional BigQuery dry-run checks. |
 | `.env.example` | Configuration template. Copy it to `.env` and replace placeholders. |
 | `INSTALL.md` | Step-by-step installation guide. |
+| `CONTRIBUTING.md` | How to contribute (DCO, Apache License 2.0). |
+| `SECURITY.md` | How to report security concerns privately. |
 | `LICENSE` | Apache License 2.0. |
 
 This repository is the minimal public install package for WACA core.
@@ -29,8 +31,8 @@ This repository is the minimal public install package for WACA core.
 ## Quick Start
 
 ```bash
-git clone https://github.com/wacasg/waca-core-public.git
-cd waca-core-public
+git clone https://github.com/wacasg/waca-core.git
+cd waca-core
 cp .env.example .env
 
 # Static check only. This does not connect to BigQuery.
@@ -65,6 +67,21 @@ analysis. The two central output tables are:
 The procedure also creates helper and log tables, such as event-parameter
 masters, schema history, batch execution logs, and user-mapping tables. These
 tables are created in the output dataset you configure.
+
+## BigQuery Location and Time Zone
+
+A BigQuery query normally runs in a single location, so for a standard install
+create the output dataset (for example `waca_core_output`) in the **same BigQuery
+location as your GA4 BigQuery export dataset**, and set `BQ_LOCATION` in `.env` to
+match. The template defaults to `asia-northeast1` (Tokyo); change it to `US`,
+`EU`, or another region if that is where your GA4 export lives.
+
+Date handling defaults to the `Asia/Tokyo` (JST) time zone. The optional
+daily-batch wrapper reads `BATCH_TIMEZONE` from `.env` (default `Asia/Tokyo`) when
+it computes the date window to process, but the stored procedure body itself
+currently buckets event dates in `Asia/Tokyo` and does not read `BATCH_TIMEZONE`.
+If you operate outside Japan, note that day boundaries follow JST unless you edit
+the SQL.
 
 ## Requirements
 
@@ -117,13 +134,15 @@ WACA core は、GA4 の BigQuery export データを分析しやすい形に変�
 | `scripts/install_smoke_check.sh` | static check と optional BigQuery dry-run。 |
 | `.env.example` | 設定 template。`.env` に copy して自分の値に置き換えます。 |
 | `INSTALL.md` | install 手順書。 |
+| `CONTRIBUTING.md` | 貢献方法（DCO、Apache License 2.0）。 |
+| `SECURITY.md` | セキュリティ報告の窓口（非公開）。 |
 | `LICENSE` | Apache License 2.0。 |
 
 ### まず試す
 
 ```bash
-git clone https://github.com/wacasg/waca-core-public.git
-cd waca-core-public
+git clone https://github.com/wacasg/waca-core.git
+cd waca-core
 cp .env.example .env
 bash scripts/install_smoke_check.sh
 ```
@@ -137,6 +156,20 @@ PROJECT_ID=your-gcp-project-id DRY_RUN=1 bash scripts/install_smoke_check.sh
 ```
 
 詳しい手順は [INSTALL.md](INSTALL.md) を参照してください。
+
+### BigQuery location とタイムゾーン
+
+BigQuery の query は通常 1 つの location 内で実行されるため、標準的な install では
+出力 dataset（例: `waca_core_output`）を **GA4 BigQuery export dataset と同じ
+BigQuery location** に作成し、`.env` の `BQ_LOCATION` も合わせてください。template の
+既定値は `asia-northeast1`（東京）です。GA4 export が別 region にある場合は `US` や
+`EU` などに変更してください。
+
+日付処理は既定で `Asia/Tokyo`（JST）を使用します。任意の日次 batch wrapper は処理
+対象の日付範囲を計算する際に `.env` の `BATCH_TIMEZONE`（既定 `Asia/Tokyo`）を参照
+しますが、stored procedure 本体は現状 event の日付を `Asia/Tokyo` で区切っており
+`BATCH_TIMEZONE` は参照しません。日本国外で運用する場合、SQL を変更しない限り日付
+境界は JST 基準になる点に注意してください。
 
 ### 法的表示
 

@@ -10,16 +10,18 @@ store your GA4 data.
 
 > **Important — use a dedicated, empty output dataset.**
 > The examples below call WACA core with `force_reset=TRUE`. On a force reset,
-> the procedure drops every table in the output dataset that it does not manage.
-> If `TARGET_DATASET` points at a dataset that already holds your own tables,
-> those tables are deleted. Always create a new, empty dataset for WACA core
-> output (for example `waca_core_output`), in the same BigQuery location as your
-> GA4 export.
+> the procedure drops its own leftover tables in the output dataset — those that
+> follow WACA core naming conventions (`mst_*`, `log_*`, `dim_*`, `micro_*`,
+> `audit_*`) but are not in its current keep-list. It does not drop unrelated
+> tables. Even so, always create a new, empty dataset for WACA core output (for
+> example `waca_core_output`), in the same BigQuery location as your GA4 export,
+> so a misconfigured `TARGET_DATASET` cannot disturb data you rely on.
 >
 > **重要 — 専用の空 dataset を使ってください。**
 > 以下の手順例は `force_reset=TRUE` で WACA core を実行します。force reset 時、
-> procedure は出力 dataset 内の管理外テーブルをすべて削除します。既存の自分の
-> テーブルがある dataset を `TARGET_DATASET` に指定すると、それらは削除されます。
+> procedure は出力 dataset 内にある WACA core 自身の残存テーブル（`mst_*`、`log_*`、
+> `dim_*`、`micro_*`、`audit_*` の命名規則で、現在の保持リストに無いもの）を削除
+> します。無関係なテーブルは削除しません。それでも、設定ミスの影響を避けるため、
 > 必ず WACA core 出力専用の空 dataset（例: `waca_core_output`）を、GA4 export と
 > 同じ BigQuery location で新規作成してください。
 
@@ -51,8 +53,8 @@ install with the anonymous sample dataset.
 ## 2. Clone and Configure
 
 ```bash
-git clone https://github.com/wacasg/waca-core-public.git
-cd waca-core-public
+git clone https://github.com/wacasg/waca-core.git
+cd waca-core
 cp .env.example .env
 ```
 
@@ -70,6 +72,11 @@ Open `.env` and replace the placeholders:
 
 Do not commit `.env`. It may contain project IDs, credential paths, or other
 local settings.
+
+The direct `bq` install steps below (sections 6–8) read the inline
+`PROJECT_ID` / `TARGET_DATASET` / `LOCATION` variables shown in each command,
+not `.env`. The `.env` file is consumed by the optional daily wrapper
+(section 9); keeping your values there for reference is fine.
 
 ## 3. Run Static Smoke Check
 
@@ -224,6 +231,46 @@ pip install -r requirements.txt
 The wrapper reads environment variables such as `PROJECT_ID`, `TARGET_DATASET`,
 `SOURCE_DATASET`, `PROCEDURE_NAME`, and `CLIENT_ID`.
 
+### Deploy and schedule the wrapper (optional)
+
+To run the wrapper on a schedule, deploy it as a Cloud Functions (2nd gen) HTTP
+function and trigger it from Cloud Scheduler. Keep it private — require
+authentication and do not allow unauthenticated access.
+
+```bash
+cd src/cloud_functions/waca-core-daily-batch
+
+gcloud functions deploy waca-core-daily-batch \
+  --gen2 \
+  --runtime=python312 \
+  --region="${LOCATION}" \
+  --source=. \
+  --entry-point=run_waca_core_daily_batch \
+  --trigger-http \
+  --no-allow-unauthenticated \
+  --set-env-vars=PROJECT_ID="${PROJECT_ID}",TARGET_DATASET="${TARGET_DATASET}",SOURCE_DATASET="${SOURCE_DATASET}",PROCEDURE_NAME=run_waca_core_batch,CLIENT_ID=your-client-id
+```
+
+`--no-allow-unauthenticated` keeps the endpoint private. Give the Scheduler
+service account the Cloud Run Invoker role on the function, then create the job
+with an OIDC token:
+
+```bash
+gcloud scheduler jobs create http waca-core-daily \
+  --location="${LOCATION}" \
+  --schedule="0 5 * * *" \
+  --time-zone="Asia/Tokyo" \
+  --uri="$(gcloud functions describe waca-core-daily-batch --gen2 --region="${LOCATION}" --format='value(serviceConfig.uri)')" \
+  --http-method=POST \
+  --oidc-service-account-email="SCHEDULER_SA@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --message-body='{}'
+```
+
+The function's runtime service account needs `roles/bigquery.jobUser` on the
+project and read/write access to the output dataset. An empty body `{}` runs the
+daily plan; send `{"start_date":"YYYYMMDD","end_date":"YYYYMMDD"}` for a manual
+backfill, or `{"dry_run":true}` to preview the plan without executing.
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -273,8 +320,8 @@ bq ls --project_id=your-gcp-project-id
 ### 2. clone して設定する
 
 ```bash
-git clone https://github.com/wacasg/waca-core-public.git
-cd waca-core-public
+git clone https://github.com/wacasg/waca-core.git
+cd waca-core
 cp .env.example .env
 ```
 
@@ -292,6 +339,11 @@ cp .env.example .env
 
 `.env` は commit しないでください。project ID、credential path、local setting が
 含まれる可能性があります。
+
+以下の直接 `bq` 手順（§6〜§8）は、各コマンドに書かれた `PROJECT_ID` /
+`TARGET_DATASET` / `LOCATION` のインライン変数を使い、`.env` は読み込みません。
+`.env` は §9 の任意 daily wrapper が読みます。値の控えとして `.env` に保存しておく
+のは問題ありません。
 
 ### 3. static smoke check を実行する
 
@@ -427,6 +479,45 @@ pip install -r requirements.txt
 
 wrapper は `PROJECT_ID`、`TARGET_DATASET`、`SOURCE_DATASET`、`PROCEDURE_NAME`、
 `CLIENT_ID` などの environment variables を読みます。
+
+### wrapper のデプロイと定期実行（任意）
+
+wrapper を定期実行する場合は、Cloud Functions（第2世代）の HTTP 関数としてデプロイ
+し、Cloud Scheduler から起動します。必ず認証必須にし、未認証アクセスは許可しない
+でください。
+
+```bash
+cd src/cloud_functions/waca-core-daily-batch
+
+gcloud functions deploy waca-core-daily-batch \
+  --gen2 \
+  --runtime=python312 \
+  --region="${LOCATION}" \
+  --source=. \
+  --entry-point=run_waca_core_daily_batch \
+  --trigger-http \
+  --no-allow-unauthenticated \
+  --set-env-vars=PROJECT_ID="${PROJECT_ID}",TARGET_DATASET="${TARGET_DATASET}",SOURCE_DATASET="${SOURCE_DATASET}",PROCEDURE_NAME=run_waca_core_batch,CLIENT_ID=your-client-id
+```
+
+`--no-allow-unauthenticated` で endpoint を非公開にします。Scheduler の service
+account に Cloud Run Invoker 権限を付与し、OIDC token 付きで job を作成します。
+
+```bash
+gcloud scheduler jobs create http waca-core-daily \
+  --location="${LOCATION}" \
+  --schedule="0 5 * * *" \
+  --time-zone="Asia/Tokyo" \
+  --uri="$(gcloud functions describe waca-core-daily-batch --gen2 --region="${LOCATION}" --format='value(serviceConfig.uri)')" \
+  --http-method=POST \
+  --oidc-service-account-email="SCHEDULER_SA@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --message-body='{}'
+```
+
+関数の runtime service account には、project に対する `roles/bigquery.jobUser` と、
+出力 dataset への read/write 権限が必要です。body が空 `{}` の場合は日次プランを
+実行します。`{"start_date":"YYYYMMDD","end_date":"YYYYMMDD"}` で手動 backfill、
+`{"dry_run":true}` で実行せずにプランの確認ができます。
 
 ### よくある失敗
 
