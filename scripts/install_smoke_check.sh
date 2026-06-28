@@ -12,6 +12,8 @@ LOCATION="${BQ_LOCATION:-asia-northeast1}"
 required_files=(
   "README.md"
   "INSTALL.md"
+  "CONTRIBUTING.md"
+  "SECURITY.md"
   "LICENSE"
   ".env.example"
   "src/run_waca_core_batch.sql"

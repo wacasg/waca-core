@@ -1187,16 +1187,19 @@ BEGIN
             q, 'mst_user_properties', q, ',',
             q, 'standard_config', q,
           ') ',
-          -- Safety hardening: only drop leftover tables that follow WACA core
-          -- naming conventions (mst_/log_/dim_/micro_/audit_), so unrelated user
-          -- tables in the same dataset are preserved even if TARGET_DATASET is
-          -- not a dedicated empty dataset.
+          -- Safety hardening: only drop tables that WACA core manages, so
+          -- unrelated user tables in the same dataset are preserved even if
+          -- TARGET_DATASET is not a dedicated empty dataset. WACA core tables are
+          -- either named with a known prefix (mst_/log_/dim_/micro_/audit_) or
+          -- are per-event source tables whose names come from mst_event_params
+          -- (e.g. page_view, purchase, session_start, custom events).
           'AND (',
             'STARTS_WITH(table_name, ', q, 'mst_', q, ') OR ',
             'STARTS_WITH(table_name, ', q, 'log_', q, ') OR ',
             'STARTS_WITH(table_name, ', q, 'dim_', q, ') OR ',
             'STARTS_WITH(table_name, ', q, 'micro_', q, ') OR ',
-            'STARTS_WITH(table_name, ', q, 'audit_', q, ')',
+            'STARTS_WITH(table_name, ', q, 'audit_', q, ') OR ',
+            'table_name IN (SELECT event_name FROM `', full_target_path, '.mst_event_params`)',
           ')'
         );
         FOR drop_rec IN (SELECT table_name FROM _p2_drop_targets)

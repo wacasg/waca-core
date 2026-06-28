@@ -10,17 +10,19 @@ store your GA4 data.
 
 > **Important — use a dedicated, empty output dataset.**
 > The examples below call WACA core with `force_reset=TRUE`. On a force reset,
-> the procedure drops its own leftover tables in the output dataset — those that
-> follow WACA core naming conventions (`mst_*`, `log_*`, `dim_*`, `micro_*`,
-> `audit_*`) but are not in its current keep-list. It does not drop unrelated
-> tables. Even so, always create a new, empty dataset for WACA core output (for
-> example `waca_core_output`), in the same BigQuery location as your GA4 export,
-> so a misconfigured `TARGET_DATASET` cannot disturb data you rely on.
+> the procedure drops the tables it manages in the output dataset — its prefixed
+> tables (`mst_*`, `log_*`, `dim_*`, `micro_*`, `audit_*`) and the per-event
+> source tables it creates (named after GA4 events, for example `page_view` or
+> `purchase`) — when they are not in its current keep-list. It does not drop
+> unrelated tables. Even so, always create a new, empty dataset for WACA core
+> output (for example `waca_core_output`), in the same BigQuery location as your
+> GA4 export, so a misconfigured `TARGET_DATASET` cannot disturb data you rely on.
 >
 > **重要 — 専用の空 dataset を使ってください。**
 > 以下の手順例は `force_reset=TRUE` で WACA core を実行します。force reset 時、
-> procedure は出力 dataset 内にある WACA core 自身の残存テーブル（`mst_*`、`log_*`、
-> `dim_*`、`micro_*`、`audit_*` の命名規則で、現在の保持リストに無いもの）を削除
+> procedure は WACA core 自身が管理するテーブル — prefix 付きテーブル（`mst_*`、
+> `log_*`、`dim_*`、`micro_*`、`audit_*`）と、GA4 event 名で作られる event 別 source
+> テーブル（例: `page_view`、`purchase`）— のうち現在の保持リストに無いものを削除
 > します。無関係なテーブルは削除しません。それでも、設定ミスの影響を避けるため、
 > 必ず WACA core 出力専用の空 dataset（例: `waca_core_output`）を、GA4 export と
 > 同じ BigQuery location で新規作成してください。
