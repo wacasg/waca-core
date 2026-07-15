@@ -180,6 +180,13 @@ SELECT COUNT(*) AS row_count FROM \`${PROJECT_ID}.${TARGET_DATASET}.micro_items_
 "
 ```
 
+With the bundled sample these counts are non-zero (`micro_user_table` has one row
+per event). The sample includes an anonymous `pseudonymous_users_*` export, so it
+also populates the user dictionary (`log_pseudonymous_users`) and resolves
+`user_id` for the identified sample user. If your own GA4 run returns 0 rows,
+check `log_batch_execution.phase_1_status` for a `pseudonymous_users_* not found`
+warning.
+
 ## 8. Run WACA core on Your GA4 Export
 
 Change only the source dataset and date range:
@@ -283,6 +290,7 @@ backfill, or `{"dry_run":true}` to preview the plan without executing.
 | `Not found: Dataset ...` | Confirm `PROJECT_ID`, `TARGET_DATASET`, and `SOURCE_DATASET`. |
 | No GA4 data appears | Confirm your GA4 BigQuery export has `events_*` tables for the date range. |
 | `pseudonymous_users_*` is missing | WACA core can run without GA4 user-data export tables; user identifiers will remain anonymous where GA4 does not provide them. |
+| `SELECT ... AS rows` fails | `rows` is a reserved keyword in BigQuery. Use another alias such as `row_count`. |
 
 Do not use real customer data as sample data. Use the anonymous sample first,
 then switch to your own GA4 export after the install path is clear.
@@ -438,6 +446,12 @@ SELECT COUNT(*) AS row_count FROM \`${PROJECT_ID}.${TARGET_DATASET}.micro_user_t
 "
 ```
 
+同梱サンプルではこのカウントは 0 以外になります（`micro_user_table` は event ごとに
+1 行）。サンプルには匿名の `pseudonymous_users_*` export が含まれるため、ユーザー
+辞書（`log_pseudonymous_users`）も生成され、識別ユーザーの `user_id` が解決されます。
+自分の GA4 export で 0 行になる場合は、`log_batch_execution.phase_1_status` に
+`pseudonymous_users_* not found` 警告が無いか確認してください。
+
 ### 8. 自分の GA4 export に対して実行する
 
 sample で動作確認できたら、source dataset と date range を自分の GA4 export に
@@ -531,6 +545,7 @@ gcloud scheduler jobs create http waca-core-daily \
 | `Not found: Dataset ...` | `PROJECT_ID`、`TARGET_DATASET`、`SOURCE_DATASET` を確認してください。 |
 | GA4 data が出ない | 指定 date range に `events_*` table があるか確認してください。 |
 | `pseudonymous_users_*` が無い | GA4 user-data export table が無くても実行できます。その場合、GA4 が提供しない user identifier は匿名のままになります。 |
+| `SELECT ... AS rows` でエラー | `rows` は BigQuery の予約語です。`row_count` など別の別名を使ってください。 |
 
 sample data として実顧客 data を使わないでください。まず匿名 sample で install path を
 確認し、その後に自分の GA4 export に切り替えてください。
