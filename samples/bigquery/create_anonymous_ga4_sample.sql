@@ -221,6 +221,36 @@ SELECT * FROM UNNEST([
 ])
 """, full_dataset);
 
+-- Anonymous GA4 user-data export sample (pseudonymous_users_*).
+-- Provides the user dictionary that Phase 1 reads so a sample-only run also
+-- populates dim/log_pseudonymous_users and resolves user_id for one user.
+-- pseudo_user_id values match user_pseudo_id in the events tables above.
+EXECUTE IMMEDIATE FORMAT("""
+CREATE OR REPLACE TABLE `%s.pseudonymous_users_20260501` AS
+SELECT * FROM UNNEST([
+  STRUCT(
+    'anon_user_001' AS pseudo_user_id,
+    'sample_member_001' AS user_id,
+    STRUCT(1777611900000000 AS last_active_timestamp_micros, 1777611600000000 AS user_first_touch_timestamp_micros) AS user_info,
+    STRUCT('desktop' AS category, 'SampleBrand' AS mobile_brand_name, 'macOS' AS operating_system) AS device,
+    STRUCT('Japan' AS country, 'Tokyo' AS region, 'Chiyoda' AS city) AS geo,
+    [
+      STRUCT('customer_type' AS key, STRUCT('customer_type' AS user_property_name, 1777611600000000 AS set_timestamp_micros, 'sample_member' AS string_value) AS value)
+    ] AS user_properties
+  ),
+  STRUCT(
+    'anon_user_002',
+    CAST(NULL AS STRING),
+    STRUCT(1777698000000000, 1777698000000000),
+    STRUCT('mobile', 'SamplePhone', 'iOS'),
+    STRUCT('Japan', 'Osaka', 'Osaka'),
+    [
+      STRUCT('customer_type', STRUCT('customer_type', 1777698000000000, 'sample_visitor'))
+    ]
+  )
+])
+""", full_dataset);
+
 SELECT
   full_dataset AS sample_dataset,
-  'events_20260501 and events_20260502 created with anonymous synthetic data' AS status;
+  'events_20260501, events_20260502, and pseudonymous_users_20260501 created with anonymous synthetic data' AS status;
