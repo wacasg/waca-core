@@ -1606,7 +1606,27 @@ BEGIN
         SET p3_schema_ok = FALSE;
         BEGIN
           SET sql_text = CONCAT(
-            "SELECT COUNTIF(column_name IN ('event_id','session_event_no','user_event_no','event_timestamp_micros','hostname_norm','prev_hostname_norm','is_cross_domain_hop','prev_event_name','seconds_from_prev_event','page_view_id')) = 10 ",
+            -- 固定カラム 51 個すべてが揃っている場合のみ増分 INSERT を許可する。
+            -- Phase 0 の CREATE TABLE IF NOT EXISTS が作る最小スタブ（21 列）や旧版の
+            -- テーブルは pseudonymous_session_id 等を欠くため、ここで CREATE OR REPLACE に落とす。
+            "SELECT COUNTIF(column_name IN (",
+              "'event_date','event_timestamp','event_timestamp_micros','event_name',",
+              "'user_pseudo_id','user_id','is_identified_user','ga_session_id',",
+              "'pseudonymous_session_id','page_view_id','is_key_event',",
+              "'event_id','session_event_no','user_event_no','clarity_play_url',",
+              "'device_category','mobile_brand_name','mobile_model_name',",
+              "'operating_system','operating_system_version','browser',",
+              "'device_language','hostname','hostname_norm',",
+              "'prev_hostname_norm','next_hostname_norm','is_cross_domain_hop',",
+              "'continent','sub_continent','country','region','city',",
+              "'traffic_source','traffic_medium','traffic_campaign',",
+              "'collected_source','collected_medium','collected_campaign',",
+              "'analytics_storage','platform','gclid',",
+              "'prev_event_name','seconds_from_prev_event','max_scroll_percent',",
+              "'last_active_timestamp','last_active_date',",
+              "'first_touch_timestamp','first_touch_date',",
+              "'updated_at','source_table_date','batch_id'",
+            ")) = 51 ",
             "FROM `", full_target_path, ".INFORMATION_SCHEMA.COLUMNS` WHERE table_name = 'micro_user_table'"
           );
           EXECUTE IMMEDIATE sql_text INTO p3_schema_ok;

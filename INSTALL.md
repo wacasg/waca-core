@@ -291,6 +291,7 @@ backfill, or `{"dry_run":true}` to preview the plan without executing.
 | No GA4 data appears | Confirm your GA4 BigQuery export has `events_*` tables for the date range. |
 | `pseudonymous_users_*` is missing | WACA core can run without GA4 user-data export tables; user identifiers will remain anonymous where GA4 does not provide them. |
 | `SELECT ... AS rows` fails | `rows` is a reserved keyword in BigQuery. Use another alias such as `row_count`. |
+| `Column pseudonymous_session_id is not present in table ... micro_user_table` | An earlier run left the 21-column `micro_user_table` stub created by Phase 0. Since this fix the Phase 3a schema guard rebuilds the table automatically; on older procedures, re-register `src/run_waca_core_batch.sql` or run once with `is_force_reset = TRUE`. |
 
 Do not use real customer data as sample data. Use the anonymous sample first,
 then switch to your own GA4 export after the install path is clear.
@@ -546,6 +547,7 @@ gcloud scheduler jobs create http waca-core-daily \
 | GA4 data が出ない | 指定 date range に `events_*` table があるか確認してください。 |
 | `pseudonymous_users_*` が無い | GA4 user-data export table が無くても実行できます。その場合、GA4 が提供しない user identifier は匿名のままになります。 |
 | `SELECT ... AS rows` でエラー | `rows` は BigQuery の予約語です。`row_count` など別の別名を使ってください。 |
+| `Column pseudonymous_session_id is not present in table ... micro_user_table` | 以前の実行が Phase 0 の 21 列スタブ `micro_user_table` を残しています。本修正以降は Phase 3a のスキーマ判定が自動で作り直します。旧版の procedure では `src/run_waca_core_batch.sql` を再登録するか、`is_force_reset = TRUE` で一度実行してください。 |
 
 sample data として実顧客 data を使わないでください。まず匿名 sample で install path を
 確認し、その後に自分の GA4 export に切り替えてください。
