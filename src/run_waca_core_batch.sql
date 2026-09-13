@@ -1519,7 +1519,9 @@ BEGIN
       END FOR;
 
       IF p3_processed_events = 0 THEN
-        SET sql_text = CONCAT(sql_text, "SELECT CAST(NULL AS STRING) AS user_pseudo_id, CAST(NULL AS INT64) AS ga_session_id WHERE FALSE");
+        -- No key-event tables (no cv_* / purchase yet): build an empty set.
+        -- A bare SELECT cannot carry WHERE, so select from a one-row UNNEST.
+        SET sql_text = CONCAT(sql_text, "SELECT CAST(NULL AS STRING) AS user_pseudo_id, CAST(NULL AS INT64) AS ga_session_id FROM UNNEST([STRUCT(1 AS _dummy)]) WHERE FALSE");
       END IF;
       SET sql_text = CONCAT(sql_text, ")");
       EXECUTE IMMEDIATE sql_text;
