@@ -55,6 +55,12 @@ BEGIN
   DECLARE p1_result_count_2 INT64 DEFAULT 0;
   DECLARE p1_result_count_3 INT64 DEFAULT 0;
   DECLARE p1_has_pseudonymous_users BOOL DEFAULT FALSE;
+  -- pseudonymous_users_* に user_id 列があるか。GA4 の export 設定によっては user_id 列を
+  -- 持たない（user_id を送っていないサイト）。`p.* EXCEPT(user_id)` は列の存在を前提に
+  -- しているため、そのままでは Phase 1 が必ず失敗する。
+  DECLARE p1_pu_has_user_id BOOL DEFAULT FALSE;
+  DECLARE p1_pu_ga4_user_id_sql STRING;
+  DECLARE p1_pu_resolved_user_id_sql STRING;
 
   -- Phase 2 固有変数
   DECLARE p2_columns_sql STRING;
@@ -863,6 +869,32 @@ BEGIN
         SET p1_has_pseudonymous_users = FALSE;
       END;
 
+      -- pseudonymous_users_* の user_id 列を検知し、列の有無で SELECT 句を切り替える。
+      -- 列を持たない export では "Column user_id in SELECT * EXCEPT list does not exist"
+      -- で Phase 1 が失敗するため。
+      BEGIN
+        SET sql_text = FORMAT("""
+          SELECT COUNT(*) > 0
+          FROM `%s.%s.INFORMATION_SCHEMA.COLUMNS`
+          WHERE STARTS_WITH(table_name, 'pseudonymous_users_')
+            AND SUBSTR(table_name, LENGTH('pseudonymous_users_') + 1)
+              BETWEEN '%s' AND '%s'
+            AND column_name = 'user_id'
+        """, project_id, source_ds, p1_lookback_start_suffix, p1_end_date_suffix);
+        EXECUTE IMMEDIATE sql_text INTO p1_pu_has_user_id;
+      EXCEPTION WHEN ERROR THEN
+        -- 検知失敗時は安全側（列なし = EXCEPT を使わない経路）に倒す。
+        SET p1_pu_has_user_id = FALSE;
+      END;
+
+      IF p1_pu_has_user_id THEN
+        SET p1_pu_ga4_user_id_sql = "p.* EXCEPT(user_id), p.user_id AS ga4_user_id, ";
+        SET p1_pu_resolved_user_id_sql = "COALESCE(m.user_id, p.user_id) AS resolved_user_id ";
+      ELSE
+        SET p1_pu_ga4_user_id_sql = "p.*, CAST(NULL AS STRING) AS ga4_user_id, ";
+        SET p1_pu_resolved_user_id_sql = "m.user_id AS resolved_user_id ";
+      END IF;
+
       -- Step 1: ID辞書テーブル作成 (dim_user_map_180d)
       SET sql_text = CONCAT("DROP TABLE IF EXISTS `", full_target_path, ".dim_user_map_180d`");
       EXECUTE IMMEDIATE sql_text;
@@ -963,8 +995,8 @@ BEGIN
             "SELECT DISTINCT user_pseudo_id, user_id FROM `", full_target_path, ".dim_user_map_180d` ",
           "), ",
           "TargetLogs AS ( ",
-            "SELECT p.* EXCEPT(user_id), p.user_id AS ga4_user_id, p._TABLE_SUFFIX AS table_suffix, ",
-              "COALESCE(m.user_id, p.user_id) AS resolved_user_id ",
+            "SELECT ", p1_pu_ga4_user_id_sql, "p._TABLE_SUFFIX AS table_suffix, ",
+              p1_pu_resolved_user_id_sql,
             "FROM `", full_source_path, ".pseudonymous_users_*` p ",
             "LEFT JOIN MasterUsers m ON p.pseudo_user_id = m.user_pseudo_id ",
             "WHERE p._TABLE_SUFFIX BETWEEN '", p1_lookback_start_suffix, "' AND '", p1_end_date_suffix, "' ",
